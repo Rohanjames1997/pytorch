@@ -365,6 +365,9 @@ inline masked_load(const T* src, at::vec::Vectorized<float> mask) {
 # error Unsupported vectorization CPU capability
 # endif
 }
+#endif
+
+#if INDUCTOR_USE_VECTOR_TYPES()
 
 template <typename T>
 inline at::vec::Vectorized<float> flag_to_float_vec(const T* src) {
@@ -494,6 +497,12 @@ inline at::vec::Vectorized<float> cvt_int64_to_fp32(at::vec::VectorizedN<int64_t
   auto high_double = at::vec::convert_to_fp_of_same_size<double>(src[1]);
   auto high = _mm256_cvtpd_ps(high_double);
   return _mm256_insertf128_ps(_mm256_castps128_ps256(low), high, 1);
+# elif defined(CPU_CAPABILITY_NEON)
+  auto low_double = at::vec::convert_to_fp_of_same_size<double>(src[0]);
+  auto high_double = at::vec::convert_to_fp_of_same_size<double>(src[1]); //256
+  auto v1 = {vcvt_f32_f64(low_double.get_low()), vcvt_f32_f64(low_double.get_high())};
+  auto v2 = {vcvt_f32_f64(high_double.get_low()), vcvt_f32_f64(high_double.get_high())};
+  return {v1, v2};
 # else
   constexpr int float_vec_size = at::vec::Vectorized<float>::size();
   constexpr int int64_vec_size = at::vec::Vectorized<int64_t>::size();
