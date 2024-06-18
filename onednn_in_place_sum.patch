@@ -1,4 +1,4 @@
- *******************************************************************************
+*******************************************************************************
  Copyright 2024 Arm Limited and affiliates.
  SPDX-License-Identifier: Apache-2.0
 
@@ -47,7 +47,7 @@ diff --git a/src/cpu/aarch64/matmul/acl_matmul.hpp b/src/cpu/aarch64/matmul/acl_
 index 6d848abe5..ed6eaca85 100644
 --- a/src/cpu/aarch64/matmul/acl_matmul.hpp
 +++ b/src/cpu/aarch64/matmul/acl_matmul.hpp
-@@ -117,9 +117,15 @@ struct acl_matmul_t : public primitive_t {
+@@ -117,14 +117,20 @@ struct acl_matmul_t : public primitive_t {
              }
 
              arm_compute::ActivationLayerInfo act_info;
@@ -65,3 +65,9 @@ index 6d848abe5..ed6eaca85 100644
 
              // Validate ACL GEMM
              ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_tensor_info,
+                     &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
+-                    amp_.alpha, 0.0f, amp_.gemm_info));
++                    1.0f, 0.0f, amp_.gemm_info));
+
+             return status::success;
+         }
