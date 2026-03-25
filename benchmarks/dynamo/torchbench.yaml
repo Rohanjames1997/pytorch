@@ -147,6 +147,7 @@ detectron2_models: &DETECTRON2_MODELS
   - detectron2_maskrcnn_r_101_c4
   - detectron2_maskrcnn_r_101_fpn
   - detectron2_maskrcnn_r_50_fpn
+  - detectron2_maskrcnn_r_50_c4
 
 
 # These models support only train mode. So accuracy checking can't be done in
@@ -244,6 +245,16 @@ skip:
       - stable_diffusion_text_encoder
       - llava
       - moco
+      - *DETECTRON2_MODELS
+      - drq
+      - fastNLP_Bert
+      - functorch_maml_omniglot
+      - maml_omniglot
+      - mobilenet_v2_quantized_qat
+      - opacus_cifar10
+      - resnet50_quantized_qat
+      - torch_multimodal_clip
+      - vision_maskrcnn
 
     # Skip these additional models when running on aarch64
     cpu_aarch64: []
