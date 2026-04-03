@@ -140,6 +140,30 @@ struct VecReduceAllSIMD<float, std::plus<Vectorized<float>>> {
     return vaddvq_f32(acc_vec);
   }
 };
+
+template <typename Op>
+struct VecReduceAllSIMD<double, Op> {
+  static inline double apply(
+      const Op& vec_fun,
+      const Vectorized<double>& acc_vec) {
+    using Vec = Vectorized<double>;
+    Vec v = acc_vec;
+    // For 128-bit NEON with 2 doubles: swap lanes and reduce
+    float64x2_t v1_1 = vextq_f64(v, v, 1);
+    Vec v1 = v1_1;
+    v = vec_fun(v, v1);
+    return vgetq_lane_f64(v, 0);
+  }
+};
+
+template <>
+struct VecReduceAllSIMD<double, std::plus<Vectorized<double>>> {
+  static inline double apply(
+      const std::plus<Vectorized<double>>& vec_fun,
+      const Vectorized<double>& acc_vec) {
+    return vaddvq_f64(acc_vec);
+  }
+};
 #endif // defined(__aarch64__) && !defined(C10_MOBILE) && !defined(__CUDACC__)
        // && !defined(CPU_CAPABILITY_SVE)
 

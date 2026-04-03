@@ -390,10 +390,10 @@ class Vectorized<float> {
   DEFINE_SLEEF_COMPATIBLE_UNARY_ELEMENTWISE_FUNC(cos)
   DEFINE_SLEEF_COMPATIBLE_UNARY_ELEMENTWISE_FUNC(cosh)
   Vectorized<float> ceil() const {
-    return map(at::native::ceil_impl);
+    return Vectorized<float>(vrndpq_f32(values));
   }
   Vectorized<float> floor() const {
-    return map(at::native::floor_impl);
+    return Vectorized<float>(vrndmq_f32(values));
   }
   Vectorized<float> neg() const {
     return Vectorized<float>(vnegq_f32(values));
@@ -401,7 +401,7 @@ class Vectorized<float> {
   Vectorized<float> round() const {
     // We do not use std::round because we would like to round midway numbers to
     // the nearest even integer.
-    return map(at::native::round_impl);
+    return Vectorized<float>(vrndnq_f32(values));
   }
   DEFINE_SLEEF_COMPATIBLE_UNARY_ELEMENTWISE_FUNC(tan)
   DEFINE_SLEEF_COMPATIBLE_UNARY_ELEMENTWISE_FUNC(tanh)
@@ -417,6 +417,12 @@ class Vectorized<float> {
   }
   Vectorized<float> rsqrt() const {
     return this->sqrt().reciprocal();
+  }
+  float reduce_add() const {
+    return vaddvq_f32(values);
+  }
+  float reduce_max() const {
+    return vmaxvq_f32(values);
   }
   DEFINE_SLEEF_COMPATIBLE_BINARY_ELEMENTWISE_FUNC(pow)
   Vectorized<float> operator==(const Vectorized<float>& other) const {

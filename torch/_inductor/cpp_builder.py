@@ -919,12 +919,16 @@ def _get_optimization_cflags(
     else:
         if sys.platform != "darwin":
             # on macos, unknown argument: '-fno-tree-loop-vectorize'
-            if _is_gcc(cpp_compiler):
+            # On aarch64, the inductor uses explicit NEON intrinsics for
+            # vectorization, so GCC's auto-vectorizer won't conflict.
+            # Keeping it enabled allows GCC to vectorize any scalar loops
+            # that the inductor doesn't explicitly vectorize.
+            if _is_gcc(cpp_compiler) and platform.machine() != "aarch64":
                 cflags.append("fno-tree-loop-vectorize")
             # https://stackoverflow.com/questions/65966969/why-does-march-native-not-work-on-apple-m1
             # `-march=native` is unrecognized option on M1
             if not config.is_fbcode():
-                if platform.machine() == "ppc64le":
+                if platform.machine() in ("ppc64le", "aarch64"):
                     cflags.append("mcpu=native")
                 elif platform.machine() == "riscv64":
                     cflags.append("march=rv64gc")

@@ -399,6 +399,29 @@ inline Vectorized<Half> convert_float_half(
   return Vectorized<Half>(vcombine_f16(x1, x2));
 }
 
+// VecConvert specializations for Half→float on NEON
+template <>
+struct VecConvert<float, 2, c10::Half, 1> {
+  static inline VectorizedN<float, 2> apply(
+      const VectorizedN<c10::Half, 1>& src) {
+    VectorizedN<float, 2> result;
+    float16x8_t f16 = src[0];
+    result[0] = vcvt_f32_f16(vget_low_f16(f16));
+    result[1] = vcvt_f32_f16(vget_high_f16(f16));
+    return result;
+  }
+};
+template <>
+struct VecConvert<float, 1, c10::Half, 1> {
+  static inline VectorizedN<float, 1> apply(
+      const VectorizedN<c10::Half, 1>& src) {
+    VectorizedN<float, 1> result;
+    float16x8_t f16 = src[0];
+    result[0] = vcvt_f32_f16(vget_low_f16(f16));
+    return result;
+  }
+};
+
 template <typename Op>
 Vectorized<c10::Half> binary_operator_via_float(
     Op op,

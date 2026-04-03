@@ -427,12 +427,78 @@ def do_not_use_with_small_m_for_int8_woq(config, m, n, k, alpha, num_threads, **
         compute_dtype=torch.float,
     ),
     *generate_gemm_config(
+        VecNEON,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.bfloat16,
+        output_dtype=torch.float,
+    ),
+    *generate_gemm_config(
+        VecNEON,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.half,
+        output_dtype=torch.float,
+    ),
+    *generate_gemm_config(
+        VecNEON,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.bfloat16,
+        input2_dtype=torch.int8,
+        output_dtype=torch.float,
+        compute_dtype=torch.float,
+        extra_check=do_not_use_with_small_m_for_int8_woq,
+    ),
+    *generate_gemm_config(
+        VecNEON,
+        [
+            (2, 16, 64),
+            (4, 16, 64),
+        ],
+        input_dtype=torch.bfloat16,
+        input2_dtype=torch.int8,
+        output_dtype=torch.float,
+        compute_dtype=torch.float,
+        extra_check=check_int8_woq_small_m_dim,
+    ),
+    *generate_gemm_config(
         VecSVE256,
         [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
         input_dtype=torch.float,
         input2_dtype=torch.float,
         output_dtype=torch.float,
         compute_dtype=torch.float,
+    ),
+    *generate_gemm_config(
+        VecSVE256,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.bfloat16,
+        output_dtype=torch.float,
+    ),
+    *generate_gemm_config(
+        VecSVE256,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.half,
+        output_dtype=torch.float,
+    ),
+    *generate_gemm_config(
+        VecSVE256,
+        [(4, 24, 1), (4, 16, 1), (8, 8, 1)],
+        input_dtype=torch.bfloat16,
+        input2_dtype=torch.int8,
+        output_dtype=torch.float,
+        compute_dtype=torch.float,
+        extra_check=do_not_use_with_small_m_for_int8_woq,
+    ),
+    *generate_gemm_config(
+        VecSVE256,
+        [
+            (2, 16, 64),
+            (4, 16, 64),
+        ],
+        input_dtype=torch.bfloat16,
+        input2_dtype=torch.int8,
+        output_dtype=torch.float,
+        compute_dtype=torch.float,
+        extra_check=check_int8_woq_small_m_dim,
     ),
 )
 class CppMicroGemmFP32Vec(CppMicroGemm):
@@ -643,7 +709,7 @@ inline void {{kernel_name}}_transpose_b_kernel(
             // Convert VLEN int8 elements to int32, and then fp32
             auto b32 = at::vec::convert_to_int32<int8_t>(B + k * ldb + col * VLEN);
             if constexpr (prefetch) {
-              _mm_prefetch(B + (k + {{block_k}}) * ldb + col * VLEN, _MM_HINT_T0);
+              INDUCTOR_PREFETCH_L1(B + (k + {{block_k}}) * ldb + col * VLEN);
             }
             vb[col] = at::vec::convert<float>(b32);
         {%- else %}

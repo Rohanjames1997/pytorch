@@ -5690,6 +5690,8 @@ class LoopLevel:
             line1 = f"#pragma omp {simd}"
         elif not self.is_reduction and cpp_builder.is_gcc():
             line1 = "#pragma GCC ivdep"
+        elif not self.is_reduction and cpp_builder.is_clang():
+            line1 = "#pragma clang loop vectorize(enable) interleave(enable)"
         else:
             line1 = ""
         offset_str = f"{INDEX_TYPE} {self.var}={offset_expr}"

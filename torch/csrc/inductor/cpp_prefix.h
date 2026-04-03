@@ -40,6 +40,14 @@
 #define INDUCTOR_USE_VECTOR_TYPES() 0
 #endif
 
+// Cross-platform prefetch hint
+#if defined(CPU_CAPABILITY_AVX512) || defined(CPU_CAPABILITY_AVX2)
+#include <xmmintrin.h>
+#define INDUCTOR_PREFETCH_L1(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+#else
+#define INDUCTOR_PREFETCH_L1(addr) __builtin_prefetch(reinterpret_cast<const void*>(addr), 0, 3)
+#endif
+
 #if INDUCTOR_USE_VECTOR_TYPES()
 #include <ATen/cpu/vec/functional.h>
 #include <ATen/cpu/vec/vec.h>
@@ -685,6 +693,49 @@ inline at::vec::Vectorized<scalar_t> vec_shuffle_down(
   }
   return Vec::loadu(array);
 }
+
+#if defined(__aarch64__) && !defined(C10_MOBILE) && !defined(__CUDACC__) && \
+    !defined(CPU_CAPABILITY_SVE)
+inline at::vec::Vectorized<float> vec_shuffle_down(
+    at::vec::Vectorized<float> x,
+    size_t n) {
+  using vec_t = at::vec::Vectorized<float>;
+  if (n == 1) {
+    // [a0,a1,a2,a3] -> [a1,a1,a3,a3]
+    return vec_t(vtrn2q_f32(
+        static_cast<float32x4_t>(x), static_cast<float32x4_t>(x)));
+  } else if (n == 2) {
+    // [a0,a1,a2,a3] -> [a2,a3,a2,a3]
+    return vec_t(vextq_f32(static_cast<float32x4_t>(x),
+                           static_cast<float32x4_t>(x), 2));
+  }
+  // Fallback for unexpected n
+  alignas(alignof(vec_t)) float array[vec_t::size()];
+  x.store(array);
+  for (size_t i = 0; i + n < vec_t::size(); i += 2 * n) {
+    array[i] = array[i + n];
+  }
+  return vec_t::loadu(array);
+}
+
+inline at::vec::Vectorized<double> vec_shuffle_down(
+    at::vec::Vectorized<double> x,
+    size_t n) {
+  using vec_t = at::vec::Vectorized<double>;
+  if (n == 1) {
+    // [a0,a1] -> [a1,a1]
+    return vec_t(vdupq_laneq_f64(static_cast<float64x2_t>(x), 1));
+  }
+  // Fallback for unexpected n
+  alignas(alignof(vec_t)) double array[vec_t::size()];
+  x.store(array);
+  for (size_t i = 0; i + n < vec_t::size(); i += 2 * n) {
+    array[i] = array[i + n];
+  }
+  return vec_t::loadu(array);
+}
+#endif // defined(__aarch64__) && !defined(C10_MOBILE) && !defined(__CUDACC__)
+       // && !defined(CPU_CAPABILITY_SVE)
 
 #ifdef CPU_CAPABILITY_AVX2
 inline at::vec::Vectorized<float> vec_shuffle_down(

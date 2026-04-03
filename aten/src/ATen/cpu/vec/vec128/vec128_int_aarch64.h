@@ -4,6 +4,7 @@
 #include <ATen/cpu/vec/vec_base.h>
 #include <c10/macros/Macros.h>
 #include <c10/util/irange.h>
+#include <cstring>
 
 namespace at::vec {
 // Note [CPU_CAPABILITY namespace]
@@ -788,6 +789,58 @@ Vectorized<int8_t> inline clamp_min(
     const Vectorized<int8_t>& a,
     const Vectorized<int8_t>& min) {
   return maximum(min, a);
+}
+
+// convert_to_int32: load int8/uint8 values and widen to int32 for GEMM dequant
+template <typename T>
+std::enable_if_t<
+    !(std::is_same_v<T, int8_t> || std::is_same_v<T, uint8_t>),
+    Vectorized<int32_t>> inline convert_to_int32(
+        const T* ptr, int count = Vectorized<int32_t>::size()) {
+  return Vectorized<int32_t>::loadu(ptr, count);
+}
+
+template <typename T>
+std::enable_if_t<std::is_same_v<T, int8_t>, Vectorized<int32_t>>
+inline convert_to_int32(
+    const int8_t* ptr, int count = Vectorized<int32_t>::size()) {
+  // Load up to 4 int8 values, sign-extend to int32x4
+  int8x8_t s8x8;
+  if (count >= 4) {
+    // Load 4 bytes into the low half of an int8x8
+    int32_t tmp;
+    std::memcpy(&tmp, ptr, 4);
+    s8x8 = vreinterpret_s8_s32(vdup_n_s32(tmp));
+  } else {
+    s8x8 = vdup_n_s8(0);
+    for (int i = 0; i < count; ++i) {
+      s8x8 = vset_lane_s8(ptr[i], s8x8, i);
+    }
+  }
+  int16x8_t s16x8 = vmovl_s8(s8x8);
+  int32x4_t s32x4 = vmovl_s16(vget_low_s16(s16x8));
+  return Vectorized<int32_t>(s32x4);
+}
+
+template <typename T>
+std::enable_if_t<std::is_same_v<T, uint8_t>, Vectorized<int32_t>>
+inline convert_to_int32(
+    const uint8_t* ptr, int count = Vectorized<int32_t>::size()) {
+  // Load up to 4 uint8 values, zero-extend to int32x4
+  uint8x8_t u8x8;
+  if (count >= 4) {
+    uint32_t tmp;
+    std::memcpy(&tmp, ptr, 4);
+    u8x8 = vreinterpret_u8_u32(vdup_n_u32(tmp));
+  } else {
+    u8x8 = vdup_n_u8(0);
+    for (int i = 0; i < count; ++i) {
+      u8x8 = vset_lane_u8(ptr[i], u8x8, i);
+    }
+  }
+  uint16x8_t u16x8 = vmovl_u8(u8x8);
+  int32x4_t s32x4 = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(u16x8)));
+  return Vectorized<int32_t>(s32x4);
 }
 
 } // namespace CPU_CAPABILITY
