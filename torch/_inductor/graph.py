@@ -6,6 +6,7 @@ import itertools
 import logging
 import operator
 import os
+import platform
 import re
 import sys
 import time
@@ -709,7 +710,9 @@ class GraphLowering(torch.fx.Interpreter):
             return False
 
         # For cpu backend and mkldnn enabled, we always use channels_last for better performance.
-        if (
+        # On aarch64, channels_last is catastrophically slow for grouped convolutions
+        # (up to 15x regression), so we fall through to the heuristic check instead.
+        is_mkldnn = (
             torch.backends.mkldnn.enabled  # pyrefly: ignore [unbound-name]
             and torch.backends.mkldnn.is_available()  # pyrefly: ignore [unbound-name]
             and all(
@@ -717,7 +720,28 @@ class GraphLowering(torch.fx.Interpreter):
                 for n in conv_nodes
                 for idx in [0, 1]
             )
-        ):
+        )
+        if is_mkldnn:
+            if platform.machine() == "aarch64":
+                # On aarch64, channels_last grouped convolutions (groups>1,
+                # in_channels>1) are up to 15x slower than NCHW due to poor
+                # ACL/oneDNN support. Skip layout opt if any such convs exist.
+                def _has_grouped_conv(nodes: list[Any]) -> bool:
+                    for n in nodes:
+                        groups = n.args[-1]
+                        if isinstance(groups, str):
+                            continue
+                        if int(groups) > 1:
+                            w_meta = n.args[1].meta.get("val")
+                            if w_meta is not None and w_meta.size(1) > 1:
+                                return True
+                    return False
+
+                if _has_grouped_conv(conv_nodes):
+                    log.debug(
+                        "Skip layout opt on aarch64: grouped conv with in_channels>1"
+                    )
+                    return False
             return True
 
         # Following models are skipped due to this:
