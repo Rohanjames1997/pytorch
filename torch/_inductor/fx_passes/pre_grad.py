@@ -452,11 +452,17 @@ def fuse_conv_bn(gm: torch.fx.GraphModule, inplace=False) -> torch.fx.GraphModul
         (torch.nn.Conv1d, torch.nn.BatchNorm1d),
         (torch.nn.Conv2d, torch.nn.BatchNorm2d),
         (torch.nn.Conv3d, torch.nn.BatchNorm3d),
+        (torch.nn.ConvTranspose1d, torch.nn.BatchNorm1d),
+        (torch.nn.ConvTranspose2d, torch.nn.BatchNorm2d),
+        (torch.nn.ConvTranspose3d, torch.nn.BatchNorm3d),
     ]
     module_function_patterns = [
         (torch.nn.Conv1d, F.batch_norm),
         (torch.nn.Conv2d, F.batch_norm),
         (torch.nn.Conv3d, F.batch_norm),
+        (torch.nn.ConvTranspose1d, F.batch_norm),
+        (torch.nn.ConvTranspose2d, F.batch_norm),
+        (torch.nn.ConvTranspose3d, F.batch_norm),
     ]
     modules = dict(gm.named_modules())
 
@@ -527,7 +533,11 @@ def fuse_conv_bn(gm: torch.fx.GraphModule, inplace=False) -> torch.fx.GraphModul
                 bn = conv_bn_fusion.bn_module
 
                 # pyrefly: ignore [bad-argument-type]
-                fused_conv = fuse_conv_bn_eval(conv, bn)
+                fused_conv = fuse_conv_bn_eval(
+                    conv,
+                    bn,
+                    transpose=isinstance(conv, torch.nn.modules.conv._ConvTransposeNd),
+                )
                 for bn_node in bn_nodes:
                     replace_node_module(bn_node.args[0], modules, fused_conv)
                     bn_node.replace_all_uses_with(bn_node.args[0])
@@ -622,6 +632,9 @@ def fuse_conv_bn(gm: torch.fx.GraphModule, inplace=False) -> torch.fx.GraphModul
                     bn_eps,
                     bn_weight,
                     bn_bias,
+                    transpose=isinstance(
+                        conv, torch.nn.modules.conv._ConvTransposeNd
+                    ),
                 )
                 for bn_node in bn_nodes:
                     replace_node_module(bn_node.args[0], modules, fused_conv)
